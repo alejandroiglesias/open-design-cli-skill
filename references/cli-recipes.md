@@ -2,35 +2,53 @@
 
 Use this reference when the short workflow in `SKILL.md` is not enough.
 
+## Source Checkout Invocation
+
+For source checkouts, build the daemon and invoke the CLI script with Node:
+
+```bash
+corepack enable
+pnpm install
+pnpm --filter @open-design/daemon build
+
+export OD_NODE_BIN="${OD_NODE_BIN:-$(command -v node)}"
+export OD_BIN="${OD_BIN:-$PWD/apps/daemon/dist/cli.js}"
+odc() { "$OD_NODE_BIN" "$OD_BIN" "$@"; }
+```
+
+Use `odc <command>` throughout these recipes. For packaged installs, replace `odc` with `od`.
+
 ## Daemon And Data Directory
 
 Start one daemon and point all clients at it:
 
 ```bash
-OD_DATA_DIR="${OD_DATA_DIR:-$HOME/.open-design}" od --no-open --port 7456
+OD_DATA_DIR="${OD_DATA_DIR:-$HOME/.open-design}" odc --no-open --port 7456
 ```
 
 Check health:
 
 ```bash
 curl -sS http://127.0.0.1:7456/api/health | jq .
-od daemon status --json
+odc daemon status --json
 ```
 
 Stop a daemon:
 
 ```bash
-od daemon stop --daemon-url http://127.0.0.1:7456
+odc daemon stop --daemon-url http://127.0.0.1:7456
 ```
 
 If the app docs show `od://app`, use `http://127.0.0.1:7456` unless you know the current client resolves the custom scheme.
+
+If `odc daemon start --headless --serve-web --port 7456` exits right after printing "listening", use the top-level `odc --no-open --port 7456` form.
 
 ## Project Run With Questions
 
 Create the project:
 
 ```bash
-PROJECT_JSON=$(od project create \
+PROJECT_JSON=$(odc project create \
   --name "Investor deck" \
   --skill frontend-design \
   --design-system apple \
@@ -42,7 +60,7 @@ CONV_ID=$(jq -r '.conversationId' <<<"$PROJECT_JSON")
 Turn 1 asks:
 
 ```bash
-od run start \
+odc run start \
   --project "$PROJECT_ID" \
   --conversation "$CONV_ID" \
   --agent codex \
@@ -59,7 +77,7 @@ python3 ~/.codex/skills/open-design-cli/scripts/extract_question_form.py od-run-
 Edit `answers.txt`, then continue:
 
 ```bash
-od run start \
+odc run start \
   --project "$PROJECT_ID" \
   --conversation "$CONV_ID" \
   --agent codex \
@@ -70,8 +88,8 @@ od run start \
 Read generated files:
 
 ```bash
-od files list "$PROJECT_ID"
-od files read "$PROJECT_ID" index.html > index.html
+odc files list "$PROJECT_ID"
+odc files read "$PROJECT_ID" index.html > index.html
 ```
 
 ## Verify And Recover A Stalled Generation
@@ -80,15 +98,15 @@ Treat streamed text as provisional until the file API confirms an artifact exist
 
 ```bash
 RUN_ID=$(jq -r 'select(.event=="start") | .data.runId' od-run-2.ndjson | tail -n 1)
-od run info "$RUN_ID" --json | jq '{status, exitCode, signal, errorCode, error, eventsLogPath}'
-od files list "$PROJECT_ID" --json
+odc run info "$RUN_ID" --json | jq '{status, exitCode, signal, errorCode, error, eventsLogPath}'
+odc files list "$PROJECT_ID" --json
 ```
 
 If a run stays `running` for several minutes after saying it is writing and the files list is still empty, cancel and continue in the same project/conversation with a tighter instruction:
 
 ```bash
-od run cancel "$RUN_ID"
-od run start \
+odc run cancel "$RUN_ID"
+odc run start \
   --project "$PROJECT_ID" \
   --conversation "$CONV_ID" \
   --agent codex \
@@ -99,8 +117,8 @@ od run start \
 Then read, render, or inspect the artifact through the daemon:
 
 ```bash
-od files list "$PROJECT_ID" --json | jq '.files[] | {path,size,kind,artifactKind}'
-od files read "$PROJECT_ID" index.html > index.html
+odc files list "$PROJECT_ID" --json | jq '.files[] | {path,size,kind,artifactKind}'
+odc files read "$PROJECT_ID" index.html > index.html
 ```
 
 ## Unattended Run
@@ -108,7 +126,7 @@ od files read "$PROJECT_ID" index.html > index.html
 If the user explicitly wants no questions, say so in the prompt:
 
 ```bash
-od run start \
+odc run start \
   --project "$PROJECT_ID" \
   --conversation "$CONV_ID" \
   --agent codex \
@@ -123,13 +141,13 @@ Some API paths also honor `skipDiscoveryBrief: true` in project metadata.
 The app docs may show:
 
 ```bash
-od run --plugin od-new-generation --prompt "..." --json --follow
+odc run --plugin od-new-generation --prompt "..." --json --follow
 ```
 
-If this checkout does not support that shorthand, use `od project create` plus `od run start --message`. When applying `od-new-generation`, the plugin requires inputs:
+If this checkout does not support that shorthand, use `odc project create` plus `odc run start --message`. When applying `od-new-generation`, the plugin requires inputs:
 
 ```bash
-od plugin apply od-new-generation \
+odc plugin apply od-new-generation \
   --inputs '{"artifactKind":"landing page","audience":"design teams","topic":"AI design workflows"}' \
   --json
 ```
@@ -166,8 +184,8 @@ Use this in MCP-capable clients:
 {
   "mcpServers": {
     "open-design": {
-      "command": "od",
-      "args": ["mcp", "--daemon-url", "http://127.0.0.1:7456"],
+      "command": "node",
+      "args": ["/absolute/path/to/open-design/apps/daemon/dist/cli.js", "mcp", "--daemon-url", "http://127.0.0.1:7456"],
       "env": { "OD_DATA_DIR": "~/.open-design" }
     }
   }
@@ -183,6 +201,7 @@ curl -sS http://127.0.0.1:7456/api/mcp/install-info | jq .
 ## Troubleshooting
 
 - `command -v od` returns `/usr/bin/od`: PATH is wrong; move the Open Design wrapper earlier.
+- Source checkout on Unix-like systems: prefer `"$OD_NODE_BIN" "$OD_BIN"` or the `odc` helper instead of bare `od`.
 - `od doctor` exits nonzero but daemon health is OK: inspect issue codes. Bundled registry/plugin doctor warnings may not block simple runs.
 - `Cannot reach daemon`: start `od --no-open --port 7456`, or pass `--daemon-url http://127.0.0.1:<port>`.
 - `Run finished but produced no files`: inspect the stream for `<question-form>` or tool/auth errors, then continue with form answers or fix the agent CLI.

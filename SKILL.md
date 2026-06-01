@@ -13,39 +13,60 @@ description: >-
 
 Use Open Design as a local daemon plus CLI. Prefer headless workflows unless the user explicitly asks to open the UI.
 
+## Source Checkout Setup
+
+For a source checkout, do not call bare `od` on Unix-like systems; it may resolve to the system octal-dump command. Build the daemon and invoke the built CLI script through Node:
+
+```bash
+git clone https://github.com/nexu-io/open-design.git
+cd open-design
+corepack enable
+pnpm install
+pnpm --filter @open-design/daemon build
+
+export OD_NODE_BIN="${OD_NODE_BIN:-$(command -v node)}"
+export OD_BIN="${OD_BIN:-$PWD/apps/daemon/dist/cli.js}"
+odc() { "$OD_NODE_BIN" "$OD_BIN" "$@"; }
+
+odc --help
+```
+
+If `corepack` is not on PATH, use a Node install that includes it. Open Design's repo expects pnpm `10.33.2` and a current Node runtime; Node 24 worked in validation.
+
+For a packaged install or an intentional wrapper, `od <command>` is fine. For shareable automation, prefer the `odc` helper or explicit `"$OD_NODE_BIN" "$OD_BIN"` form.
+
 ## First Checks
 
 Verify the command and daemon before generating:
 
 ```bash
-command -v od
-od --help >/dev/null || od daemon --help
-od --no-open --port 7456
+odc --help 2>/dev/null || od --help
+odc --port 7456 --no-open
 ```
 
 Run client commands from a second shell. In plain shell scripts, prefer `http://127.0.0.1:7456` over `od://app`; some packaged Open Design contexts resolve `od://app`, but ordinary `curl` usually does not.
 
 ```bash
 curl -sS http://127.0.0.1:7456/api/health | jq .
-od status --json 2>/dev/null || od daemon status --json
-od skills list --json | jq '.skills[0]'
-od design-systems list --json | jq '.designSystems[0]'
+odc status --json 2>/dev/null || odc daemon status --json
+odc skills list --json | jq '.skills[0]'
+odc design-systems list --json | jq '.designSystems[0]'
 ```
 
-If macOS resolves `/usr/bin/od`, the Open Design wrapper is not ahead of the system octal-dump command. Put the Open Design bin directory, often `~/.local/bin`, before `/usr/bin` in PATH.
+If `odc daemon start --headless --serve-web` prints that it is listening and then exits, use the top-level daemon form `odc --port 7456 --no-open` instead.
 
 ## Run A Design
 
 Feature-detect the installed CLI shape:
 
 ```bash
-od run --help
+odc run --help
 ```
 
 If help shows `od run start`, use the project/run form:
 
 ```bash
-PROJECT_JSON=$(od project create \
+PROJECT_JSON=$(odc project create \
   --name "Task manager" \
   --skill frontend-design \
   --design-system clean \
@@ -54,7 +75,7 @@ PROJECT_JSON=$(od project create \
 PROJECT_ID=$(jq -r '.project.id' <<<"$PROJECT_JSON")
 CONV_ID=$(jq -r '.conversationId' <<<"$PROJECT_JSON")
 
-od run start \
+odc run start \
   --project "$PROJECT_ID" \
   --conversation "$CONV_ID" \
   --agent codex \
@@ -65,7 +86,7 @@ od run start \
 If help supports the packaged shorthand from the app docs, this form may work:
 
 ```bash
-od run --plugin od-new-generation \
+odc run --plugin od-new-generation \
   --prompt "A landing page for an AI agent CLI" \
   --json --follow
 ```
@@ -81,7 +102,7 @@ Open Design discovery is not `od ui respond` in current source checkouts. The fi
 Then answer using the displayed question labels:
 
 ```bash
-od run start \
+odc run start \
   --project "$PROJECT_ID" \
   --conversation "$CONV_ID" \
   --agent codex \
@@ -104,15 +125,15 @@ When the user wants reliable generation, make the answer turn explicit: tell the
 After every generation run, verify the daemon actually stored artifacts:
 
 ```bash
-od run info "$RUN_ID" --json | jq '{status, exitCode, signal, errorCode, error}'
-od files list "$PROJECT_ID" --json
+odc run info "$RUN_ID" --json | jq '{status, exitCode, signal, errorCode, error}'
+odc files list "$PROJECT_ID" --json
 ```
 
 If the stream says it is writing but `od files list` stays empty after a few minutes, cancel the stuck run and send a recovery turn in the same project/conversation:
 
 ```bash
-od run cancel "$RUN_ID"
-od run start \
+odc run cancel "$RUN_ID"
+odc run start \
   --project "$PROJECT_ID" \
   --conversation "$CONV_ID" \
   --agent codex \
@@ -125,9 +146,9 @@ od run start \
 List and read generated files through `od`:
 
 ```bash
-od files list "$PROJECT_ID"
-od files read "$PROJECT_ID" index.html > ./index.html
-od project info "$PROJECT_ID" | jq .
+odc files list "$PROJECT_ID"
+odc files read "$PROJECT_ID" index.html > ./index.html
+odc project info "$PROJECT_ID" | jq .
 ```
 
 Project files usually live under the daemon data dir, for example `~/.local/share/open-design/.od/projects/<project-id>` or the configured `OD_DATA_DIR`.
@@ -137,7 +158,7 @@ Project files usually live under the daemon data dir, for example `~/.local/shar
 Use `od media generate` for direct image, video, or audio bytes:
 
 ```bash
-od media generate \
+odc media generate \
   --surface image \
   --model gpt-image-1 \
   --aspect 1:1 \
@@ -158,8 +179,8 @@ Use MCP when an agent should discover Open Design tools itself:
 {
   "mcpServers": {
     "open-design": {
-      "command": "od",
-      "args": ["mcp", "--daemon-url", "http://127.0.0.1:7456"],
+      "command": "node",
+      "args": ["/absolute/path/to/open-design/apps/daemon/dist/cli.js", "mcp", "--daemon-url", "http://127.0.0.1:7456"],
       "env": { "OD_DATA_DIR": "~/.open-design" }
     }
   }
