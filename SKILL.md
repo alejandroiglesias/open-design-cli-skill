@@ -94,7 +94,7 @@ The daemon also accepts Unicode dash variants in the header, but prefer the ASCI
 Use the bundled parser to extract the latest form and make an answer template from a saved run stream:
 
 ```bash
-python3 /Users/alejandrogarciaiglesias/.codex/skills/open-design-cli/scripts/extract_question_form.py od-run.ndjson --template
+python3 <path-to-this-skill>/scripts/extract_question_form.py od-run.ndjson --template
 ```
 
 When the user wants reliable generation, make the answer turn explicit: tell the agent to use the submitted answers, avoid asking more questions, write the artifact now, and state the file path when done.
