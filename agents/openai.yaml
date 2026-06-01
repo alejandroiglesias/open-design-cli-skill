@@ -1,0 +1,4 @@
+interface:
+  display_name: "Open Design CLI"
+  short_description: "Drive Open Design from agent CLIs"
+  default_prompt: "Use $open-design-cli to run an Open Design generation from the terminal and handle any question-form flow."
