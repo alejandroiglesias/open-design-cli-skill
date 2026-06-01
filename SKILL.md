@@ -97,6 +97,29 @@ Use the bundled parser to extract the latest form and make an answer template fr
 python3 /Users/alejandrogarciaiglesias/.codex/skills/open-design-cli/scripts/extract_question_form.py od-run.ndjson --template
 ```
 
+When the user wants reliable generation, make the answer turn explicit: tell the agent to use the submitted answers, avoid asking more questions, write the artifact now, and state the file path when done.
+
+## Verify And Recover
+
+After every generation run, verify the daemon actually stored artifacts:
+
+```bash
+od run info "$RUN_ID" --json | jq '{status, exitCode, signal, errorCode, error}'
+od files list "$PROJECT_ID" --json
+```
+
+If the stream says it is writing but `od files list` stays empty after a few minutes, cancel the stuck run and send a recovery turn in the same project/conversation:
+
+```bash
+od run cancel "$RUN_ID"
+od run start \
+  --project "$PROJECT_ID" \
+  --conversation "$CONV_ID" \
+  --agent codex \
+  --message "The previous run stalled and produced no files. Use the already-submitted form answers. Do not ask questions. Do not critique. Do not produce a long plan. Write a compact self-contained index.html now. After writing, state the file path." \
+  --follow
+```
+
 ## Read Outputs
 
 List and read generated files through `od`:

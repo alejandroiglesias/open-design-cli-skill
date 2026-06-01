@@ -74,6 +74,35 @@ od files list "$PROJECT_ID"
 od files read "$PROJECT_ID" index.html > index.html
 ```
 
+## Verify And Recover A Stalled Generation
+
+Treat streamed text as provisional until the file API confirms an artifact exists:
+
+```bash
+RUN_ID=$(jq -r 'select(.event=="start") | .data.runId' od-run-2.ndjson | tail -n 1)
+od run info "$RUN_ID" --json | jq '{status, exitCode, signal, errorCode, error, eventsLogPath}'
+od files list "$PROJECT_ID" --json
+```
+
+If a run stays `running` for several minutes after saying it is writing and the files list is still empty, cancel and continue in the same project/conversation with a tighter instruction:
+
+```bash
+od run cancel "$RUN_ID"
+od run start \
+  --project "$PROJECT_ID" \
+  --conversation "$CONV_ID" \
+  --agent codex \
+  --message "The previous generation run stalled after planning and produced no files. Use the already-submitted form answers. Do not ask questions. Do not critique. Do not produce a long plan. Write a compact self-contained index.html now, under 220 lines. After writing, briefly state the file path." \
+  --follow | tee od-run-recovery.ndjson
+```
+
+Then read, render, or inspect the artifact through the daemon:
+
+```bash
+od files list "$PROJECT_ID" --json | jq '.files[] | {path,size,kind,artifactKind}'
+od files read "$PROJECT_ID" index.html > index.html
+```
+
 ## Unattended Run
 
 If the user explicitly wants no questions, say so in the prompt:
