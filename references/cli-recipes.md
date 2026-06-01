@@ -18,6 +18,46 @@ odc() { "$OD_NODE_BIN" "$OD_BIN" "$@"; }
 
 Use `odc <command>` throughout these recipes. For packaged installs, replace `odc` with `od`.
 
+## Headless Browser Verification
+
+Generated artifact folders usually do not have their own Node dependencies. To let spawned agents run Playwright checks, expose the source checkout's e2e dependency folder before starting the daemon:
+
+```bash
+export NODE_PATH="$PWD/e2e/node_modules${NODE_PATH:+:$NODE_PATH}"
+export PLAYWRIGHT_CHROME_EXECUTABLE_PATH="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+OD_DATA_DIR="${OD_DATA_DIR:-$HOME/.open-design}" odc --no-open --port 7456
+```
+
+Ask the agent to use `@playwright/test`, not `playwright`, from the generated project directory:
+
+```bash
+node <<'NODE'
+const { chromium } = require('@playwright/test');
+(async () => {
+  const browser = await chromium.launch({
+    headless: true,
+    executablePath: process.env.PLAYWRIGHT_CHROME_EXECUTABLE_PATH || undefined,
+  });
+  const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+  await page.goto('file://' + process.cwd() + '/index.html', { waitUntil: 'load' });
+  const result = {
+    title: await page.title(),
+    h1: await page.locator('h1').first().innerText().catch(() => null),
+    taskCount: await page.locator('.task').count().catch(() => 0),
+  };
+  console.log(JSON.stringify(result, null, 2));
+  await browser.close();
+})();
+NODE
+```
+
+If the machine does not have system Chrome, install a Playwright-managed browser once:
+
+```bash
+pnpm --dir e2e exec playwright install chromium
+unset PLAYWRIGHT_CHROME_EXECUTABLE_PATH
+```
+
 ## Daemon And Data Directory
 
 Start one daemon and point all clients at it:

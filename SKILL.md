@@ -35,6 +35,37 @@ If `corepack` is not on PATH, use a Node install that includes it. Open Design's
 
 For a packaged install or an intentional wrapper, `od <command>` is fine. For shareable automation, prefer the `odc` helper or explicit `"$OD_NODE_BIN" "$OD_BIN"` form.
 
+## Enable Browser Checks
+
+Open Design's generated project directories are usually plain artifact folders with no `node_modules`, so agents cannot assume `require('playwright')` works. Source checkouts include `@playwright/test` under `e2e/node_modules`; expose it before starting the daemon when the user wants headless browser verification:
+
+```bash
+export NODE_PATH="$PWD/e2e/node_modules${NODE_PATH:+:$NODE_PATH}"
+export PLAYWRIGHT_CHROME_EXECUTABLE_PATH="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+odc --port 7456 --no-open
+```
+
+Then instruct the agent to verify generated HTML with `@playwright/test` and `require`, not plain `playwright`:
+
+```bash
+node <<'NODE'
+const { chromium } = require('@playwright/test');
+(async () => {
+  const browser = await chromium.launch({
+    headless: true,
+    executablePath: process.env.PLAYWRIGHT_CHROME_EXECUTABLE_PATH || undefined,
+  });
+  const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+  await page.goto('file://' + process.cwd() + '/index.html');
+  console.log(await page.title());
+  console.log('tasks', await page.locator('.task').count());
+  await browser.close();
+})();
+NODE
+```
+
+If no system Chrome is available, install Playwright browsers in the source checkout with `pnpm --dir e2e exec playwright install chromium` and omit `PLAYWRIGHT_CHROME_EXECUTABLE_PATH`.
+
 ## First Checks
 
 Verify the command and daemon before generating:
