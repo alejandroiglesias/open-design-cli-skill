@@ -41,20 +41,18 @@ Open Design's generated project directories are usually plain artifact folders w
 
 ```bash
 export NODE_PATH="$PWD/e2e/node_modules${NODE_PATH:+:$NODE_PATH}"
-export PLAYWRIGHT_CHROME_EXECUTABLE_PATH="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+export PLAYWRIGHT_BROWSERS_PATH="${PLAYWRIGHT_BROWSERS_PATH:-/private/tmp/pw-browsers}"
+pnpm --dir e2e exec playwright install chromium
 odc --port 7456 --no-open
 ```
 
-Then instruct the agent to verify generated HTML with `@playwright/test` and `require`, not plain `playwright`:
+Then instruct the agent to verify generated HTML with `@playwright/test` and `require`, not plain `playwright`. Prefer Playwright-managed Chromium for OD-spawned agents:
 
 ```bash
 node <<'NODE'
 const { chromium } = require('@playwright/test');
 (async () => {
-  const browser = await chromium.launch({
-    headless: true,
-    executablePath: process.env.PLAYWRIGHT_CHROME_EXECUTABLE_PATH || undefined,
-  });
+  const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
   await page.goto('file://' + process.cwd() + '/index.html');
   console.log(await page.title());
@@ -64,7 +62,7 @@ const { chromium } = require('@playwright/test');
 NODE
 ```
 
-If no system Chrome is available, install Playwright browsers in the source checkout with `pnpm --dir e2e exec playwright install chromium` and omit `PLAYWRIGHT_CHROME_EXECUTABLE_PATH`.
+If you explicitly use system Chrome, set `PLAYWRIGHT_CHROME_EXECUTABLE_PATH="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"` and pass it as `executablePath`. On macOS, OD-spawned agents may hit Chrome Crashpad permission errors with the system Chrome app; fall back to Playwright-managed Chromium by unsetting `PLAYWRIGHT_CHROME_EXECUTABLE_PATH`.
 
 ## First Checks
 

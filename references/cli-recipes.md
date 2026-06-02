@@ -24,7 +24,8 @@ Generated artifact folders usually do not have their own Node dependencies. To l
 
 ```bash
 export NODE_PATH="$PWD/e2e/node_modules${NODE_PATH:+:$NODE_PATH}"
-export PLAYWRIGHT_CHROME_EXECUTABLE_PATH="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+export PLAYWRIGHT_BROWSERS_PATH="${PLAYWRIGHT_BROWSERS_PATH:-/private/tmp/pw-browsers}"
+pnpm --dir e2e exec playwright install chromium
 OD_DATA_DIR="${OD_DATA_DIR:-$HOME/.open-design}" odc --no-open --port 7456
 ```
 
@@ -34,10 +35,7 @@ Ask the agent to use `@playwright/test`, not `playwright`, from the generated pr
 node <<'NODE'
 const { chromium } = require('@playwright/test');
 (async () => {
-  const browser = await chromium.launch({
-    headless: true,
-    executablePath: process.env.PLAYWRIGHT_CHROME_EXECUTABLE_PATH || undefined,
-  });
+  const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
   await page.goto('file://' + process.cwd() + '/index.html', { waitUntil: 'load' });
   const result = {
@@ -51,11 +49,10 @@ const { chromium } = require('@playwright/test');
 NODE
 ```
 
-If the machine does not have system Chrome, install a Playwright-managed browser once:
+If the machine does not have system Chrome, or if OD-spawned agents hit macOS Chrome Crashpad permission errors, use the Playwright-managed browser path above. If you explicitly want system Chrome, set `PLAYWRIGHT_CHROME_EXECUTABLE_PATH` and pass it as `executablePath` in the launch options:
 
 ```bash
-pnpm --dir e2e exec playwright install chromium
-unset PLAYWRIGHT_CHROME_EXECUTABLE_PATH
+export PLAYWRIGHT_CHROME_EXECUTABLE_PATH="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 ```
 
 ## Daemon And Data Directory
