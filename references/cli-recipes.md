@@ -18,44 +18,15 @@ odc() { "$OD_NODE_BIN" "$OD_BIN" "$@"; }
 
 Use `odc <command>` throughout these recipes. For packaged installs, replace `odc` with `od`.
 
-## Headless Browser Verification
+## Agent-Led Verification
 
-Generated artifact folders usually do not have their own Node dependencies. To let spawned agents run Playwright checks, expose the source checkout's e2e dependency folder before starting the daemon:
+Keep this skill focused on driving Open Design, not installing a separate browser test harness. When quality matters, ask the OD agent to verify its own artifact using whatever validation tools Open Design exposes in that run:
 
-```bash
-export NODE_PATH="$PWD/e2e/node_modules${NODE_PATH:+:$NODE_PATH}"
-export PLAYWRIGHT_BROWSERS_PATH="${PLAYWRIGHT_BROWSERS_PATH:-/private/tmp/pw-browsers}"
-pnpm --dir e2e exec playwright install chromium
-OD_DATA_DIR="${OD_DATA_DIR:-$HOME/.open-design}" odc --no-open --port 7456
+```text
+After writing the artifact, verify your own work using the validation tools available in Open Design. Check desktop and mobile behavior, blank render, clipping, overlap, text fit, focus/interaction states, and obvious visual regressions. If you find issues, make one improvement pass before reporting the final file path and the checks you performed.
 ```
 
-Ask the agent to use `@playwright/test`, not `playwright`, from the generated project directory:
-
-```bash
-node <<'NODE'
-const { chromium } = require('@playwright/test');
-(async () => {
-  const browser = await chromium.launch({ headless: true });
-  const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
-  await page.goto('file://' + process.cwd() + '/index.html', { waitUntil: 'load' });
-  const result = {
-    title: await page.title(),
-    h1: await page.locator('h1').first().innerText().catch(() => null),
-    taskCount: await page.locator('.task').count().catch(() => 0),
-  };
-  console.log(JSON.stringify(result, null, 2));
-  await browser.close();
-})();
-NODE
-```
-
-Make browser verification part of the generation prompt. Example: "After writing `index.html`, run a Playwright smoke check at desktop and mobile widths, inspect the DOM/screenshot for blank render, overlap, clipping, and broken interactions, make one improvement pass if needed, and report the checks." Open Design's default frontend flow self-reviews craft, but browser automation is only reliable when the prompt asks for it and the daemon inherits the browser-check environment variables.
-
-If the machine does not have system Chrome, or if OD-spawned agents hit macOS Chrome Crashpad permission errors, use the Playwright-managed browser path above. If you explicitly want system Chrome, set `PLAYWRIGHT_CHROME_EXECUTABLE_PATH` and pass it as `executablePath` in the launch options:
-
-```bash
-export PLAYWRIGHT_CHROME_EXECUTABLE_PATH="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
-```
+If the run cannot access a browser or preview tool, ask it to inspect the generated files and report the limitation explicitly. Do not add custom browser dependencies or environment-specific setup unless the user asks for that debugging.
 
 ## Daemon And Data Directory
 
