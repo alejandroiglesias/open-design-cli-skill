@@ -49,6 +49,8 @@ const { chromium } = require('@playwright/test');
 NODE
 ```
 
+Make browser verification part of the generation prompt. Example: "After writing `index.html`, run a Playwright smoke check at desktop and mobile widths, inspect the DOM/screenshot for blank render, overlap, clipping, and broken interactions, make one improvement pass if needed, and report the checks." Open Design's default frontend flow self-reviews craft, but browser automation is only reliable when the prompt asks for it and the daemon inherits the browser-check environment variables.
+
 If the machine does not have system Chrome, or if OD-spawned agents hit macOS Chrome Crashpad permission errors, use the Playwright-managed browser path above. If you explicitly want system Chrome, set `PLAYWRIGHT_CHROME_EXECUTABLE_PATH` and pass it as `executablePath` in the launch options:
 
 ```bash
@@ -139,7 +141,9 @@ odc run info "$RUN_ID" --json | jq '{status, exitCode, signal, errorCode, error,
 odc files list "$PROJECT_ID" --json
 ```
 
-If a run stays `running` for several minutes after saying it is writing and the files list is still empty, cancel and continue in the same project/conversation with a tighter instruction:
+Do not treat silence as failure by itself. Slow models may think for several minutes before producing an artifact. Wait for a conservative window such as 5-10 minutes, or longer for complex prompts, then compare stream output, run status, the event-log path from `run info`, and `odc files list "$PROJECT_ID"`. Only cancel if the run has claimed it is writing, or the run info/event log has stopped changing, and the files list is still empty or missing the expected artifact.
+
+If those checks show no stream, status, event-log, or file activity, cancel and continue in the same project/conversation with a tighter instruction:
 
 ```bash
 odc run cancel "$RUN_ID"

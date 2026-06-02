@@ -62,6 +62,8 @@ const { chromium } = require('@playwright/test');
 NODE
 ```
 
+When starting the Open Design run, ask for browser verification explicitly, for example: "After writing `index.html`, run a Playwright smoke check at desktop and mobile widths, inspect the DOM/screenshot for blank render, overlap, clipping, and broken interactions, make one improvement pass if needed, and report the checks." Open Design's frontend skills include self-review guidance, but browser automation is only reliable when the run is prompted for it and the dependencies are exported before the daemon starts.
+
 If you explicitly use system Chrome, set `PLAYWRIGHT_CHROME_EXECUTABLE_PATH="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"` and pass it as `executablePath`. On macOS, OD-spawned agents may hit Chrome Crashpad permission errors with the system Chrome app; fall back to Playwright-managed Chromium by unsetting `PLAYWRIGHT_CHROME_EXECUTABLE_PATH`.
 
 ## First Checks
@@ -158,7 +160,9 @@ odc run info "$RUN_ID" --json | jq '{status, exitCode, signal, errorCode, error}
 odc files list "$PROJECT_ID" --json
 ```
 
-If the stream says it is writing but `od files list` stays empty after a few minutes, cancel the stuck run and send a recovery turn in the same project/conversation:
+Do not cancel only because the model is quiet. Slow agents may spend several minutes reasoning before they write files. Treat a run as stalled only when the stream has claimed it is writing, or the run info/event log has not changed for a conservative window such as 5-10 minutes, and `odc files list "$PROJECT_ID"` is still empty or missing the expected artifact. Use a longer window for slow models or complex prompts.
+
+If those checks show no stream, status, event-log, or file activity, cancel the stuck run and send a recovery turn in the same project/conversation:
 
 ```bash
 odc run cancel "$RUN_ID"
