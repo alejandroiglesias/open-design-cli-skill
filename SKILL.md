@@ -67,6 +67,24 @@ odc design-systems list --json | jq '.designSystems[0]'
 
 If `odc daemon start --headless --serve-web` prints that it is listening and then exits, use the top-level daemon form `odc --port 7456 --no-open` instead.
 
+## Install Internet Skills
+
+Open Design installs user skills into its own data dir, not into the agent's `~/.agents/skills` or `~/.codex/skills`. After the daemon is reachable, install OD-compatible skills through the daemon API, then verify them with `odc skills show`.
+
+For Hallmark, use the Open Design adapter repo with `SKILL.md` at the root and `od:` metadata:
+
+```bash
+if ! curl -sS http://127.0.0.1:7456/api/skills | jq -e '.skills[] | select(.id == "hallmark")' >/dev/null; then
+  curl -sS -X POST http://127.0.0.1:7456/api/skills/install \
+    -H 'content-type: application/json' \
+    -d '{"source":"github","url":"https://github.com/alejandroiglesias/hallmark-open-design"}' | jq .
+fi
+
+odc skills show hallmark --json | jq '{id,mode,surface,scenario,category,previewType}'
+```
+
+Do this after cloning/building Open Design and starting the daemon. Direct installs from nested skill repos may fail because Open Design expects `SKILL.md` at the repository root.
+
 ## Run A Design
 
 Feature-detect the installed CLI shape:
@@ -94,6 +112,8 @@ odc run start \
   --message "Design a polished task manager app." \
   --follow | tee od-run.ndjson
 ```
+
+To use Hallmark, install it first, then create the project with `--skill hallmark`.
 
 If help supports the packaged shorthand from the app docs, this form may work:
 

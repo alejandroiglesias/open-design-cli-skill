@@ -53,6 +53,37 @@ If the app docs show `od://app`, use `http://127.0.0.1:7456` unless you know the
 
 If `odc daemon start --headless --serve-web --port 7456` exits right after printing "listening", use the top-level `odc --no-open --port 7456` form.
 
+## Install Skills Into Open Design
+
+Open Design has its own skill catalog under the daemon data dir. Installing a skill with `npx skills add ...` makes it available to an agent, but it does not automatically register it with Open Design. Use the daemon API after health is good:
+
+```bash
+curl -sS http://127.0.0.1:7456/api/health | jq .
+curl -sS -X POST http://127.0.0.1:7456/api/skills/install \
+  -H 'content-type: application/json' \
+  -d '{"source":"github","url":"https://github.com/<owner>/<repo>"}' | jq .
+```
+
+The GitHub repo must expose `SKILL.md` at the repository root. If the upstream repo stores skills under a nested path, make an OD-compatible adapter repo or clone locally and install the subfolder with:
+
+```bash
+curl -sS -X POST http://127.0.0.1:7456/api/skills/install \
+  -H 'content-type: application/json' \
+  -d '{"source":"local","path":"/absolute/path/to/skill-folder"}' | jq .
+```
+
+Hallmark uses an adapter repo because `nutlope/hallmark` stores the skill under `skills/hallmark/`:
+
+```bash
+if ! curl -sS http://127.0.0.1:7456/api/skills | jq -e '.skills[] | select(.id == "hallmark")' >/dev/null; then
+  curl -sS -X POST http://127.0.0.1:7456/api/skills/install \
+    -H 'content-type: application/json' \
+    -d '{"source":"github","url":"https://github.com/alejandroiglesias/hallmark-open-design"}' | jq .
+fi
+
+odc skills show hallmark --json | jq '{id,mode,surface,scenario,category,previewType}'
+```
+
 ## Project Run With Questions
 
 Create the project:
